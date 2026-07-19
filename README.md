@@ -62,6 +62,28 @@ graph TD
     H -->|Local QA Template Match| I
 ```
 
+### RAG System Prompt Grounding Diagram
+Below is the execution flow of how raw query strings are enriched with active state variables and security tokens before matching:
+
+```mermaid
+sequenceDiagram
+    participant User as Client Browser
+    participant API as Next.js API route (/api/ai/copilot)
+    participant Limiter as IP Rate Limiter
+    participant context as Stadium Context (Telemetry)
+    participant Gemini as Google Gemini SDK
+
+    User->>API: POST /api/ai/copilot (Message, History, Role)
+    API->>Limiter: Check Client IP limits
+    Limiter-->>API: Limit Check Passed
+    API->>context: Read Active telemetry (Zones occupancy, closed gates, incidents)
+    context-->>API: Structured Grounding JSON
+    API->>API: Compile System Grounding Prompt
+    API->>Gemini: sendMessage(Prompt + Grounding Data)
+    Gemini-->>API: JSON Structured Response
+    API-->>User: Validated Schema JSON Response (Intent + Followups)
+```
+
 ---
 
 ## 📂 Project Directory Structure
@@ -71,12 +93,15 @@ The codebase is organized into modular folders separating presentation, state co
 ```bash
 FIFA CHALLENGE/
 ├── e2e/                     # Playwright automated End-to-End browser tests
+│   └── basic.spec.ts        # E2E Smoke and User Journey flows
 ├── public/                  # Static assets (images, icons, theme logos)
 │   └── screenshots/         # UI layout walkthrough screenshots
 ├── src/
 │   ├── app/                 # Next.js App Router pages and API routes
 │   │   ├── api/             # REST/JSON endpoints
 │   │   │   └── ai/          # Gemini RAG Copilot & explanation routes
+│   │   │       ├── copilot/ # Main grounded chatbot route
+│   │   │       └── explain-route/ # Dijkstra path AI description route
 │   │   ├── assistant/       # AI Copilot chatbot interface
 │   │   ├── navigate/        # Smart Navigation & pathfinding map interface
 │   │   ├── operations/      # Operations Command Center Dashboard
@@ -91,6 +116,9 @@ FIFA CHALLENGE/
 │   ├── data/                # Static Stadium graph node/edge descriptions
 │   ├── lib/
 │   │   ├── ai/              # Google Generative AI / Gemini SDK clients
+│   │   │   ├── gemini.ts    # AI Singleton & connection utilities
+│   │   │   ├── schemas.ts   # Zod request/response validators
+│   │   │   └── fallbacks.ts # Deterministic backup response rules
 │   │   ├── domain/          # Core business/operational engines
 │   │   │   ├── crowd/       # Seating bowl & occupancy calculator
 │   │   │   ├── decisions/   # Rules-based Q&A fallback engine
@@ -98,6 +126,10 @@ FIFA CHALLENGE/
 │   │   └── server/          # Server utilities (IP-based API rate limiter)
 │   └── types/               # Type definitions for seating, routing, and alerts
 ├── tests/                   # Vitest unit tests for components, pages, state, and domain engines
+│   ├── components/          # Layout, Shell, and Visuals unit testing
+│   ├── context/             # Context state transitions & mutations testing
+│   ├── domain/              # Dijkstra, Incident assessments, and crowd load tests
+│   └── server/              # In-memory IP Rate Limiter testing
 └── package.json             # Build commands and dependency catalog
 ```
 
@@ -110,11 +142,29 @@ The core routing algorithm calculates the shortest path on a weighted graph $G(V
 
 $$W_{final}(e) = W_{base}(e) \times (1 + \text{Congestion Penalty}) \times \text{Accessibility Multiplier}$$
 
-*   **Congestion Penalty:** If an edge's state is marked as `congested` or `critical`, its weight is scaled up:
-    $$\text{Congestion Penalty} = \text{Congestion Ratio} \times \text{Multiplier (default: 3x)}$$
+*   **Congestion Penalty:** If an edge's destination node lies in a congested zone, its weight scales up:
+    $$\text{Congestion Penalty} = \text{Congestion Ratio} \times \text{Multiplier}$$
+    
+    The congestion multiplier values are categorized by bands:
+    - **RED (Occupancy $\ge 90\%$):** 4.0x multiplier
+    - **ORANGE (Occupancy $\ge 75\%$):** 2.0x multiplier
+    - **YELLOW (Occupancy $\ge 50\%$):** 1.3x multiplier
+    - **GREEN (Occupancy $< 50\%$):** 1.0x multiplier (No penalty)
+    
 *   **Accessibility Filter:** If the **Step-Free** navigation option is selected and the edge type is `stairs`, the Edge is filtered out or its weight is set to infinity ($\infty$).
 
 To maximize computation speed and minimize complexity, the router implements **$O(1)$ Hash Map Lookups** for all dynamic queries. Instead of executing linear scans over arrays inside hot loops (i.e. `Array.prototype.find`), nodes, zones, and edge mappings are pre-cached in constant-time hash tables.
+
+#### Step-by-Step Path Calculation Trace
+For a route from **Gate A** to **Section 101**:
+1.  Initialize distance table: $D[\text{Gate A}] = 0$, all others $\infty$.
+2.  Pre-map all POIs and Zones to $O(1)$ lookup maps.
+3.  Evaluate neighbors of **Gate A** (e.g., **North Concourse Link**, distance 60m):
+    - Retrieve zone details of North Concourse ($O(1)$).
+    - If Concourse occupancy is 3300/4000 ($82.5\%$, **ORANGE**): Apply $2.0\text{x}$ multiplier.
+    - Final edge cost $= 60 \times 2.0 = 120\text{m}$.
+    - Set $D[\text{North Concourse Link}] = 120$.
+4.  Reconstruct the shortest path from the destination once visited.
 
 ### 2. Multi-Lingual Grounding & Fallback Engine
 When the user chats with the AI Copilot:
@@ -122,6 +172,19 @@ When the user chats with the AI Copilot:
 2.  **Safety Rate Limiter:** The Next.js API route limits request frequency based on client IP using a sliding-window token bucket in `src/lib/server/rate-limit.ts`.
 3.  **Secure IP Resolver:** Implements protection against HTTP header spoofing by resolving client addresses using secure header splitting (extracting the first entry from `X-Forwarded-For` and falling back to `X-Real-IP`).
 4.  **Deterministic Fallback:** If the Gemini API is offline, the client invokes `src/lib/domain/decisions/engine.ts` which uses optimized regular expression pattern-matchers to reply with structured, local, and accurate data.
+
+---
+
+## 🔒 Security Specifications & Threat Modeling
+
+Our system maintains strict security controls across endpoints, operations roles, and data access. The table below outlines our threat modeling and safeguards:
+
+| Threat Vector | Severity | Vulnerability Impact | Mitigation Strategy |
+| :--- | :---: | :--- | :--- |
+| **IP Spoofing / Rate Limiter Bypass** | High | Spammer could fake `x-forwarded-for` to bypass API limits. | Strict IP extraction using `forwardedFor.split(',')[0].trim()` fallback to `x-real-ip`. |
+| **CORS Policy Exploits** | Medium | Malicious sites executing client queries on behalf of fans. | Restricts origins to matched host headers and verified `.vercel.app` domains. |
+| **Privilege Escalation** | High | General users triggering Operator/Volunteer instructions. | Production authentication headers validated against `process.env.STADIUMFLOW_AUTH_TOKEN`. |
+| **LLM Injection / Hallucinations** | Medium | Users tricking chatbot to bypass stadium rules. | Strictly grounded RAG templates restricting models to provided context payloads. |
 
 ---
 

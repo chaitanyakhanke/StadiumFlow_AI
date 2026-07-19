@@ -20,8 +20,16 @@ export function calculateRoute(
   const { requireAccessible = false, avoidCongested = false } = options;
 
   // 1. Check if start/end POIs exist and are valid
-  const startPoi = pois.find(p => p.id === startPoiId);
-  const endPoi = pois.find(p => p.id === endPoiId);
+  const poiMap = new Map<string, POI>(pois.map(p => [p.id, p]));
+  const zoneMap = new Map<string, Zone>(zones.map(z => [z.id, z]));
+  const edgeMap = new Map<string, Edge>();
+  edges.forEach(e => {
+    edgeMap.set(`${e.source}_${e.target}`, e);
+    edgeMap.set(`${e.target}_${e.source}`, e);
+  });
+
+  const startPoi = poiMap.get(startPoiId);
+  const endPoi = poiMap.get(endPoiId);
   if (!startPoi || !endPoi) return null;
 
   // If destination or origin is closed, no path is allowed unless they are the same
@@ -42,7 +50,6 @@ export function calculateRoute(
   });
 
   edges.forEach(edge => {
-    // Edges are bidirectional in the stadium layout unless specified, let's treat them as bidirectional
     if (graph[edge.source]) {
       graph[edge.source].push({ edge, targetId: edge.target });
     }
@@ -87,7 +94,7 @@ export function calculateRoute(
     for (const { edge, targetId } of neighbors) {
       if (!unvisited.has(targetId)) continue;
 
-      const targetPoi = pois.find(p => p.id === targetId);
+      const targetPoi = poiMap.get(targetId);
       if (!targetPoi) continue;
 
       // Filter: Skip closed edges or closed POIs
@@ -103,8 +110,7 @@ export function calculateRoute(
       let congestionBand: CongestionLevel = 'GREEN';
 
       if (avoidCongested) {
-        // Find zone of target POI
-        const targetZone = zones.find(z => z.id === targetPoi.zoneId);
+        const targetZone = zoneMap.get(targetPoi.zoneId);
         if (targetZone) {
           congestionBand = calculateCongestionLevel(
             targetZone.currentOccupancy,
@@ -158,17 +164,14 @@ export function calculateRoute(
     const v = path[i + 1];
     
     // Find the original edge distance
-    const connectedEdge = edges.find(
-      e => (e.source === u && e.target === v) || (e.source === v && e.target === u)
-    );
-    
+    const connectedEdge = edgeMap.get(`${u}_${v}`);
     const edgeDist = connectedEdge ? connectedEdge.distance : 0;
     totalDistance += edgeDist;
     
     // Calculate congestion cost component
-    const nextPoi = pois.find(p => p.id === v);
+    const nextPoi = poiMap.get(v);
     if (nextPoi) {
-      const nextZone = zones.find(z => z.id === nextPoi.zoneId);
+      const nextZone = zoneMap.get(nextPoi.zoneId);
       if (nextZone && avoidCongested) {
         const band = calculateCongestionLevel(nextZone.currentOccupancy, nextZone.capacity);
         let multiplier = 1.0;
@@ -182,21 +185,17 @@ export function calculateRoute(
   }
 
   // Walking speed: standard is 1.2 meters per second (~72 meters/minute)
-  // Congestion slows down walking. Let's calculate ETA in minutes.
-  // Effective walking speed = 1.2 m/s / penaltyMultiplier
   const baseWalkingSpeedMps = 1.2;
   let totalSeconds = 0;
 
   for (let i = 0; i < path.length - 1; i++) {
     const u = path[i];
     const v = path[i + 1];
-    const connectedEdge = edges.find(
-      e => (e.source === u && e.target === v) || (e.source === v && e.target === u)
-    );
+    const connectedEdge = edgeMap.get(`${u}_${v}`);
     const edgeDist = connectedEdge ? connectedEdge.distance : 0;
     
-    const targetPoi = pois.find(p => p.id === v);
-    const targetZone = targetPoi ? zones.find(z => z.id === targetPoi.zoneId) : null;
+    const targetPoi = poiMap.get(v);
+    const targetZone = targetPoi ? zoneMap.get(targetPoi.zoneId) : null;
     let localMultiplier = 1.0;
     if (targetZone) {
       const band = calculateCongestionLevel(targetZone.currentOccupancy, targetZone.capacity);
@@ -216,7 +215,7 @@ export function calculateRoute(
     totalDistance,
     etaMinutes,
     isAccessible: path.every(nodeId => {
-      const poi = pois.find(p => p.id === nodeId);
+      const poi = poiMap.get(nodeId);
       return poi ? poi.isAccessible : false;
     }),
     costExplain: {

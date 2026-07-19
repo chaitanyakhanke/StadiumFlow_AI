@@ -6,7 +6,21 @@ import { rateLimit } from '@/lib/server/rate-limit';
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    // Security check: Same-origin / trusted-origin validation to prevent CORS exploits
+    const origin = req.headers.get('origin');
+    const host = req.headers.get('host');
+    if (origin && host) {
+      const originHost = new URL(origin).host;
+      if (originHost !== host && !originHost.endsWith('.vercel.app')) {
+        return NextResponse.json(
+          { error: { code: 'UNAUTHORIZED_ORIGIN', message: 'CORS policy: Request from unauthorized origin is blocked.' } },
+          { status: 403 }
+        );
+      }
+    }
+
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : (req.headers.get('x-real-ip') || '127.0.0.1');
     const rate = rateLimit(ip, 10, 60000);
 
     if (!rate.success) {
@@ -51,7 +65,14 @@ export async function POST(req: NextRequest) {
     
     // Check header/cookie for language preference, fallback to English
     const languageHeader = req.headers.get('accept-language') || 'en';
-    const language = languageHeader.includes('hi') ? 'hi' : languageHeader.includes('es') ? 'es' : 'en';
+    let language: 'en' | 'hi' | 'hinglish' | 'es' = 'en';
+    if (languageHeader.includes('hinglish')) {
+      language = 'hinglish';
+    } else if (languageHeader.includes('hi')) {
+      language = 'hi';
+    } else if (languageHeader.includes('es')) {
+      language = 'es';
+    }
 
     const explanationData = await getAIRouteExplanation(
       startName,

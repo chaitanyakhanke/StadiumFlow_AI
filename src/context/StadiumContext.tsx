@@ -5,7 +5,7 @@ import { Zone, POI, Edge, Incident } from '@/types';
 import { INITIAL_ZONES, INITIAL_POIS, INITIAL_EDGES, INITIAL_INCIDENTS } from '@/data/stadium-graph';
 
 export type UserRole = 'fan' | 'operator' | 'volunteer';
-export type Language = 'en' | 'hi' | 'es'; // English, Hinglish, Spanish
+export type Language = 'en' | 'hi' | 'hinglish' | 'es'; // English, Hindi (Devanagari), Hinglish (Latin), Spanish
 
 interface StadiumContextType {
   zones: Zone[];

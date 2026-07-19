@@ -42,15 +42,22 @@ export default function AssistantPage() {
     
     // Set default followups
     const followups = language === 'hi'
-      ? ["Gate status kya hai?", "Medical station kahan hai?", "Restroom kahan hai?"]
-      : language === 'es'
-        ? ["¿Estado de puertas?", "¿Dónde hay transporte?", "¿Dónde están los baños?"]
-        : ["Where is the nearest first aid?", "Which gates are congested?", "Where is the bus plaza?"];
+      ? ["गेट की स्थिति क्या है?", "चिकित्सा केंद्र कहाँ है?", "शौचालय कहाँ है?"]
+      : language === 'hinglish'
+        ? ["Gate status kya hai?", "Medical station kahan hai?", "Restroom kahan hai?"]
+        : language === 'es'
+          ? ["¿Estado de puertas?", "¿Dónde hay transporte?", "¿Dónde están los baños?"]
+          : ["Where is the nearest first aid?", "Which gates are congested?", "Where is the bus plaza?"];
     setSuggestedFollowups(followups);
   }
 
   const getWelcomeMessageText = (role: string, lang: string) => {
     if (lang === 'hi') {
+      return role === 'volunteer'
+        ? "नमस्ते! मैं आपका ग्राउंड वालंटियर कोपायलट हूँ। आप स्टेडियम सुरक्षा अलर्ट, गेट, शौचालय या चिकित्सा कक्षों के बारे में सवाल पूछ सकते हैं। मैं रिपोर्ट को कैसे आगे बढ़ाएं, इसमें भी आपकी मदद करूँगा।"
+        : "नमस्ते! मैं स्टेडियमफ्लो फैन असिस्टेंट हूँ। मैं आपको गेट, सीटें, चिकित्सा स्टेशन, शौचालय खोजने या सुलभ मार्ग (wheelchair paths) विकल्प ढूंढने में मदद कर सकता हूँ। मैं आपकी हिन्दी भाषा में सहायता करूँगा!";
+    }
+    if (lang === 'hinglish') {
       return role === 'volunteer'
         ? "Namaste! Main aapka Ground Volunteer Copilot hoon. Aap stadium safety alerts, gates, restrooms ya medical rooms ke baare me sawal puch sakte hain. Aap reports kaise escalate karein, isme bhi main help karunga."
         : "Namaste! Main StadiumFlow Fan Assistant hoon. Main aapki gates, seats, medical station, washrooms kahan hain ya step-free route path options kya hain, unme help kar sakta hoon. Main aapse Hinglish me hi baat karunga!";
@@ -58,7 +65,7 @@ export default function AssistantPage() {
     if (lang === 'es') {
       return role === 'volunteer'
         ? "¡Hola! Soy tu Copiloto de Voluntarios. Puedo ayudarte con las reglas del estadio, accesos de puertas y escalación de incidentes de seguridad."
-        : "¡Hola! Soy tu Asistente de StadiumFlow. Te ayudaré a localizar puertas, baños, puntos médicos y rutas accesibles. ¿En qué puedo ayudarte?";
+        : "¡Hola! Soy tu Asistente de StadiumFlow. Te ayudará a localizar puertas, baños, puntos médicos y rutas accesibles. ¿En qué puedo ayudarte?";
     }
     return role === 'volunteer'
       ? "Hello! I am your Ground Volunteer Copilot. I can assist with stadium guidelines, gate loads, restroom amenities, or how to escalate security incidents."
@@ -167,7 +174,7 @@ export default function AssistantPage() {
             </p>
           </div>
           <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/20">
-            {language === 'hi' ? 'Hinglish' : language === 'es' ? 'Español' : 'English'}
+            {language === 'hi' ? 'हिन्दी (Hindi)' : language === 'hinglish' ? 'Hinglish' : language === 'es' ? 'Español' : 'English'}
           </span>
         </div>
 
@@ -264,7 +271,7 @@ export default function AssistantPage() {
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder={language === 'hi' ? "Apna sawal likhein..." : language === 'es' ? "Escribe tu pregunta aquí..." : "Type your question..."}
+              placeholder={language === 'hi' ? "अपना सवाल लिखें..." : language === 'hinglish' ? "Apna sawal likhein..." : language === 'es' ? "Escribe tu pregunta aquí..." : "Type your question..."}
               className="flex-grow bg-brand-dark border border-brand-border rounded-lg text-xs px-3 py-2 text-slate-800 dark:text-slate-100 placeholder-slate-500 focus:border-brand-cyan focus:outline-none"
               aria-label="Chat input field"
             />

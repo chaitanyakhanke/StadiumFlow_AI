@@ -1,22 +1,27 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { CopilotResponseSchema, RouteExplainResponseSchema } from './schemas';
 import { getDeterministicFallback } from './fallbacks';
 import { Language, UserRole } from '@/context/StadiumContext';
-import { Zone, POI, Incident } from '@/types';
+import { Zone, POI, Incident, RouteResult } from '@/types';
 
 const apiKey = process.env.GEMINI_API_KEY || '';
 
-// Initialize generative AI SDK safely
+let genAIInstance: GoogleGenerativeAI | null = null;
+let modelInstance: GenerativeModel | null = null;
+
+// Initialize generative AI SDK safely using Singleton pattern
 const getGenModel = () => {
   if (!apiKey) return null;
-  const genAI = new GoogleGenerativeAI(apiKey);
-  // Using gemini-1.5-flash as the standard, highly efficient model
-  return genAI.getGenerativeModel({
-    model: 'gemini-1.5-flash',
-    generationConfig: {
-      responseMimeType: 'application/json'
-    }
-  });
+  if (!modelInstance) {
+    genAIInstance = new GoogleGenerativeAI(apiKey);
+    modelInstance = genAIInstance.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json'
+      }
+    });
+  }
+  return modelInstance;
 };
 
 interface ChatMessage {
@@ -71,7 +76,8 @@ export async function getAIEstimateReply(
 
   const languagePrompt = {
     en: 'Answer in professional English.',
-    hi: 'Answer in natural Hinglish (Hindi written in the Roman script). For example, write "Aap Gate A se jaa sakte hain" instead of "You can go through Gate A" or devanagari script. Keep it friendly and natural.',
+    hi: 'Answer in simple, professional Hindi using the Devanagari script (e.g. "आप गेट ए से प्रवेश कर सकते हैं।"). Keep it friendly and clear.',
+    hinglish: 'Answer in natural Hinglish (Hindi written in the Roman script). For example, write "Aap Gate A se jaa sakte hain" instead of "You can go through Gate A" or Devanagari script. Keep it friendly and natural.',
     es: 'Answer in fluent Spanish (Español).'
   }[language];
 
@@ -125,7 +131,7 @@ export async function getAIEstimateReply(
   }
 }
 
-import { RouteResult } from '@/types';
+const explanationCache = new Map<string, { explanation: string; timestamp: number }>();
 
 /**
  * Calls Gemini server-side to explain a calculated route path.
@@ -138,6 +144,14 @@ export async function getAIRouteExplanation(
   avoidCongested: boolean,
   language: Language
 ) {
+  const cacheKey = `${startName}_${endName}_${requireAccessible}_${avoidCongested}_${language}_${routeResult.totalDistance}_${routeResult.etaMinutes}`;
+  const now = Date.now();
+  const cached = explanationCache.get(cacheKey);
+  
+  if (cached && now - cached.timestamp < 300000) { // 5 minutes cache
+    return { explanation: cached.explanation };
+  }
+
   const model = getGenModel();
   
   const accessibleText = requireAccessible ? 'step-free and wheelchair friendly' : 'standard walking';
@@ -153,7 +167,8 @@ export async function getAIRouteExplanation(
 
   const languagePrompt = {
     en: 'Explain in clear English.',
-    hi: 'Explain in natural, simple Hinglish (Hindi written in Roman/Latin script). E.g. "Yeh route step-free hai aur bheed se bachaata hai."',
+    hi: 'Explain in simple Hindi using Devanagari script. E.g., "यह मार्ग व्हीलचेयर अनुकूल है और भीड़ से बचाता है।"',
+    hinglish: 'Explain in natural, simple Hinglish (Hindi written in Roman/Latin script). E.g. "Yeh route step-free hai aur bheed se bachaata hai."',
     es: 'Explain in clear Spanish.'
   }[language];
 
@@ -193,7 +208,9 @@ export async function getAIRouteExplanation(
     const rawText = result.response.text();
     const parsed = JSON.parse(rawText);
     
-    return RouteExplainResponseSchema.parse(parsed);
+    const validated = RouteExplainResponseSchema.parse(parsed);
+    explanationCache.set(cacheKey, { explanation: validated.explanation, timestamp: now });
+    return validated;
   } catch {
     return { explanation: fallbackExplanation };
   }

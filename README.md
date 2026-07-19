@@ -36,7 +36,7 @@ Explore the premium UI design and dynamic theme options (Light / Dark Mode):
 *   **Dispatcher Escalations & AI Briefs:** Integrates a real-time incident queue. Selecting an alert generates a grounded AI severity briefing and an interactive action checklist (e.g., dispatching volunteers, initiating detours).
 
 ### 2. Smart Crowd-Aware Navigation
-*   **Deterministic Dijkstra Router:** Computes the fastest walking paths between Points of Interest (Gates, Stand sections, Restrooms, First-Aid stations, Transit Plazas) in `O(V log V + E)`.
+*   **Deterministic Dijkstra Router:** Computes the fastest walking paths between Points of Interest (Gates, Stand sections, Restrooms, First-Aid stations, Transit Plazas) in $O(V \log V + E)$ time.
 *   **Accessibility Constraints:** Selecting the **Step-Free** filter dynamically bypasses stairs-only walkways, routing elderly and disabled fans exclusively through ramps, elevators, and step-free plazas.
 *   **Congestion Avoidance Detours:** Automatically recalculates paths to divert fans away from active bottlenecks, applying a mathematical penalty multiplier to congested edges.
 
@@ -114,11 +114,14 @@ $$W_{final}(e) = W_{base}(e) \times (1 + \text{Congestion Penalty}) \times \text
     $$\text{Congestion Penalty} = \text{Congestion Ratio} \times \text{Multiplier (default: 3x)}$$
 *   **Accessibility Filter:** If the **Step-Free** navigation option is selected and the edge type is `stairs`, the Edge is filtered out or its weight is set to infinity ($\infty$).
 
+To maximize computation speed and minimize complexity, the router implements **$O(1)$ Hash Map Lookups** for all dynamic queries. Instead of executing linear scans over arrays inside hot loops (i.e. `Array.prototype.find`), nodes, zones, and edge mappings are pre-cached in constant-time hash tables.
+
 ### 2. Multi-Lingual Grounding & Fallback Engine
 When the user chats with the AI Copilot:
 1.  **Context Injection (RAG):** The system queries the active `StadiumContext` for live state metrics (e.g. gates closed, incident count, current congestions) and injects this data directly into the system prompt.
 2.  **Safety Rate Limiter:** The Next.js API route limits request frequency based on client IP using a sliding-window token bucket in `src/lib/server/rate-limit.ts`.
-3.  **Deterministic Fallback:** If the Gemini API is offline, the client invokes `src/lib/domain/decisions/engine.ts` which uses optimized regular expression pattern-matchers to reply with structured, local, and accurate data.
+3.  **Secure IP Resolver:** Implements protection against HTTP header spoofing by resolving client addresses using secure header splitting (extracting the first entry from `X-Forwarded-For` and falling back to `X-Real-IP`).
+4.  **Deterministic Fallback:** If the Gemini API is offline, the client invokes `src/lib/domain/decisions/engine.ts` which uses optimized regular expression pattern-matchers to reply with structured, local, and accurate data.
 
 ---
 
@@ -166,6 +169,7 @@ npm run test:e2e
 ---
 
 ## ♿ Accessibility Compliance (a11y)
+
 StadiumFlow AI is built with accessibility in mind, conforming to WCAG 2.1 AA standards:
 *   **ARIA Roles & Landmarks:** All pages use semantic HTML (`<main>`, `<nav>`, `<header>`, `<footer>`) with explicit descriptive labels.
 *   **Keyboard Navigation:** Accessible pages support full keyboard navigation (`Tab`, `Shift+Tab`, `Enter`).

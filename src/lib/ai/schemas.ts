@@ -7,7 +7,7 @@ export const CopilotRequestSchema = z.object({
     role: z.enum(['user', 'model']),
     text: z.string()
   })).max(10), // Limit history size
-  language: z.enum(['en', 'hi', 'es']),
+  language: z.enum(['en', 'hi', 'hinglish', 'es']),
   userRole: z.enum(['fan', 'operator', 'volunteer']),
   stadiumState: z.object({
     zones: z.array(z.any()),

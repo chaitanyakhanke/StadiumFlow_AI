@@ -149,7 +149,8 @@ export const Navbar: React.FC = () => {
               className="bg-brand-dark text-slate-800 dark:text-slate-300 text-xs px-2 py-1.5 rounded border border-brand-border focus:border-brand-cyan focus:outline-none cursor-pointer"
             >
               <option value="en">English</option>
-              <option value="hi">Hinglish</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+              <option value="hinglish">Hinglish</option>
               <option value="es">Español</option>
             </select>
           </div>

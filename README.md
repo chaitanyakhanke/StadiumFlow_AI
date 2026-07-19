@@ -80,6 +80,8 @@ FIFA CHALLENGE/
 │   │   ├── assistant/       # AI Copilot chatbot interface
 │   │   ├── navigate/        # Smart Navigation & pathfinding map interface
 │   │   ├── operations/      # Operations Command Center Dashboard
+│   │   │   └── incidents/   # Incidents Log list and audit table
+│   │   ├── sustainability/  # Green telemetry & evacuation guides
 │   │   ├── layout.tsx       # Root layout configuration
 │   │   └── page.tsx         # Main Landing Portal page
 │   ├── components/          # Reusable React components
@@ -95,7 +97,7 @@ FIFA CHALLENGE/
 │   │   │   └── routing/     # Dijkstra graph pathfinding algorithm
 │   │   └── server/          # Server utilities (IP-based API rate limiter)
 │   └── types/               # Type definitions for seating, routing, and alerts
-├── tests/                   # Vitest unit tests for components, state, and domain engines
+├── tests/                   # Vitest unit tests for components, pages, state, and domain engines
 └── package.json             # Build commands and dependency catalog
 ```
 

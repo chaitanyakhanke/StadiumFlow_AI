@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
     // Security check: Protect Operator / Volunteer role actions from spoofed client queries
     if (userRole === 'operator' || userRole === 'volunteer') {
       const authHeader = req.headers.get('x-stadiumflow-auth');
-      if (process.env.NODE_ENV === 'production' && authHeader !== 'sec_stadium_2026_token') {
+      const expectedToken = process.env.STADIUMFLOW_AUTH_TOKEN || 'sec_stadium_2026_token';
+      if (process.env.NODE_ENV === 'production' && authHeader !== expectedToken) {
         return NextResponse.json(
           { error: { code: 'UNAUTHORIZED_ROLE', message: 'Security check: Invalid authorization for elevated API privileges.' } },
           { status: 403 }
